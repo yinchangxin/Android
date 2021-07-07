@@ -1,7 +1,6 @@
 package connect.ui.activity.contact;
 
 import android.app.Activity;
-import android.app.Dialog;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -16,10 +15,11 @@ import org.greenrobot.eventbus.ThreadMode;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+import connect.db.MemoryDataManager;
 import connect.db.SharedPreferenceUtil;
 import connect.db.green.DaoHelper.ContactHelper;
 import connect.db.green.bean.FriendRequestEntity;
-import connect.im.msgdeal.SendMsgUtil;
+import connect.im.bean.UserOrderBean;
 import connect.ui.activity.R;
 import connect.ui.activity.chat.exts.TransferToActivity;
 import connect.ui.activity.contact.bean.MsgSendBean;
@@ -29,6 +29,7 @@ import connect.ui.activity.login.bean.UserBean;
 import connect.ui.base.BaseActivity;
 import connect.utils.ActivityUtil;
 import connect.utils.DialogUtil;
+import connect.utils.ProtoBufUtil;
 import connect.utils.ToastEUtil;
 import connect.utils.UriUtil;
 import connect.utils.cryption.DecryptionUtil;
@@ -60,7 +61,6 @@ public class StrangerInfoActivity extends BaseActivity {
     TextView sourceTv;
 
     private StrangerInfoActivity mActivity;
-    private UserBean userBean;
     private Connect.UserInfo sendUserInfo;
     private SourceType sourceType;
     private String address;
@@ -84,7 +84,6 @@ public class StrangerInfoActivity extends BaseActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        userBean = SharedPreferenceUtil.getInstance().getUser();
         Bundle bundle = getIntent().getExtras();
         address = bundle.getString("address");
         sourceType = (SourceType) bundle.getSerializable("source");
@@ -151,13 +150,15 @@ public class StrangerInfoActivity extends BaseActivity {
             return;
         }
         DialogUtil.showEditView(mActivity, mActivity.getResources().getString(R.string.Link_Send_friend_request),
-                "", mActivity.getResources().getString(R.string.Link_Send), "", "", getString(R.string.Link_Hello_I_am, userBean.getName()), false,-1,new DialogUtil.OnItemClickListener() {
+                "", mActivity.getResources().getString(R.string.Link_Send), "", "", getString(R.string.Link_Hello_I_am, MemoryDataManager.getInstance().getName()), false,-1,new DialogUtil.OnItemClickListener() {
                     @Override
                     public void confirm(String value) {
                         MsgSendBean msgSendBean = new MsgSendBean();
                         msgSendBean.setType(MsgSendBean.SendType.TypeSendFriendQuest);
                         msgSendBean.setTips(value);
-                        SendMsgUtil.requestAddFriend(sendUserInfo.getAddress(),sendUserInfo.getPubKey(),value,sourceType.getType(),msgSendBean);
+
+                        UserOrderBean userOrderBean = new UserOrderBean();
+                        userOrderBean.requestAddFriend(sendUserInfo.getAddress(),sendUserInfo.getPubKey(),value,sourceType.getType(),msgSendBean);
                     }
 
                     @Override
@@ -183,9 +184,14 @@ public class StrangerInfoActivity extends BaseActivity {
             public void onResponse(Connect.HttpResponse response) {
                 try {
                     Connect.IMResponse imResponse = Connect.IMResponse.parseFrom(response.getBody().toByteArray());
-                    Connect.StructData structData = DecryptionUtil.decodeAESGCMStructData(userBean.getPriKey(), imResponse.getCipherData());
+                    Connect.StructData structData = DecryptionUtil.decodeAESGCMStructData(imResponse.getCipherData());
+                    if(structData == null || structData.getPlainData() == null){
+                        return;
+                    }
                     sendUserInfo = Connect.UserInfo.parseFrom(structData.getPlainData());
-                    updataView();
+                    if(ProtoBufUtil.getInstance().checkProtoBuf(sendUserInfo)){
+                        updataView();
+                    }
                 } catch (InvalidProtocolBufferException e) {
                     e.printStackTrace();
                 }

@@ -18,7 +18,7 @@ import java.io.File;
 
 import connect.db.green.DaoHelper.MessageHelper;
 import connect.ui.activity.R;
-import connect.ui.activity.chat.bean.BaseEntity;
+import connect.ui.activity.chat.bean.MsgEntity;
 import connect.ui.activity.chat.bean.MsgDefinBean;
 import connect.ui.activity.chat.bean.MsgDirect;
 import connect.ui.activity.chat.bean.MsgEntity;
@@ -42,16 +42,13 @@ public class MsgImgHolder extends MsgChatHolder {
     }
 
     @Override
-    public void buildRowData(MsgBaseHolder msgBaseHolder, final BaseEntity entity) {
+    public void buildRowData(MsgBaseHolder msgBaseHolder, final MsgEntity entity) {
         super.buildRowData(msgBaseHolder, entity);
         MsgDefinBean bean = entity.getMsgDefinBean();
         String url = TextUtils.isEmpty(bean.getContent()) ? bean.getUrl() : bean.getContent();
 
-        if (!TextUtils.isEmpty(definBean.getExt())) {
-            imgmsg.setOpenBurn(true);
-        }
-        imgmsg.loadUri(direct, entity.getPubkey(), bean.getMessage_id(), url);
-        imgmsg.setLayoutParams(calculateSize((RelativeLayout.LayoutParams) imgmsg.getLayoutParams(), bean.getImageOriginWidth(), bean.getImageOriginHeight()));
+        imgmsg.setOpenBurn(TextUtils.isEmpty(definBean.getExt())?false:true);
+        imgmsg.loadUri(direct, entity.getPubkey(), bean.getMessage_id(), url,definBean.getImageOriginWidth(),definBean.getImageOriginHeight());
 
         contentLayout.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -69,26 +66,6 @@ public class MsgImgHolder extends MsgChatHolder {
                 }
             }
         });
-    }
-
-    private RelativeLayout.LayoutParams calculateSize(RelativeLayout.LayoutParams params, float width, float height) {
-        int maxDp = SystemUtil.dipToPx(160);
-        if (height != 0 && width != 0) {
-            double scale = (width * 1.00) / height;
-            if (width >= height) {
-                width = maxDp;
-                height = (int) (width / scale);
-            } else {
-                height = maxDp;
-                width = (int) (height * scale);
-            }
-        } else {
-            width = maxDp;
-            height = maxDp;
-        }
-        params.width = (int) width;
-        params.height = (int) height;
-        return params;
     }
 
     @Override

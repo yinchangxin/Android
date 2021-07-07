@@ -1,6 +1,5 @@
 package connect.ui.activity.login.presenter;
 
-import android.app.Activity;
 import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
@@ -12,9 +11,10 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import connect.ui.activity.R;
 import connect.ui.activity.login.bean.UserBean;
 import connect.ui.activity.login.contract.ScanLoginContract;
-import connect.ui.activity.set.BackUpActivity;
 import connect.ui.activity.set.presenter.BackUpPresenter;
+import connect.utils.ConfigUtil;
 import connect.utils.ProgressUtil;
+import connect.utils.ProtoBufUtil;
 import connect.utils.ToastEUtil;
 import connect.utils.ToastUtil;
 import connect.utils.UriUtil;
@@ -74,7 +74,7 @@ public class ScanLoginPresenter implements ScanLoginContract.Presenter{
             }else{
                 byte[] byteArrayDe = Base64.decode(enStr, Base64.DEFAULT);
                 Connect.ExoprtPrivkeyQrcode privkeyQrcode = Connect.ExoprtPrivkeyQrcode.parseFrom(byteArrayDe);
-                switch (privkeyQrcode.getVersion()){
+                switch (privkeyQrcode.getVersion()) {
                     case 1:
                     case 2:
                         UserBean userBean = new UserBean();
@@ -82,13 +82,13 @@ public class ScanLoginPresenter implements ScanLoginContract.Presenter{
                         userBean.setTalkKey(privkeyQrcode.getEncriptionPri());
                         userBean.setPassHint(privkeyQrcode.getPasswordHint());
                         userBean.setPhone(privkeyQrcode.getPhone());
-                        userBean.setAvatar("https://short.connect.im/avatar/v1/"
+                        userBean.setAvatar(ConfigUtil.getInstance().serverAddress() + "/avatar/v1/"
                                 + privkeyQrcode.getAvatar() + ".jpg");
                         userBean.setConnectId(privkeyQrcode.getConnectId());
-                        mView.goinCodeLogin(userBean,"");
+                        mView.goinCodeLogin(userBean, "");
                         break;
                     default:
-                        ToastEUtil.makeText(mView.getActivity(),R.string.Login_Invalid_version_number,ToastEUtil.TOAST_STATUS_FAILE).show();
+                        ToastEUtil.makeText(mView.getActivity(), R.string.Login_Invalid_version_number, ToastEUtil.TOAST_STATUS_FAILE).show();
                         break;
                 }
             }
@@ -110,16 +110,24 @@ public class ScanLoginPresenter implements ScanLoginContract.Presenter{
                         try {
                             Connect.IMResponse imResponse = Connect.IMResponse.parseFrom(response.getBody().toByteArray());
                             Connect.StructData structData = DecryptionUtil.decodeAESGCMStructData(SupportKeyUril.EcdhExts.EMPTY,priKey,imResponse.getCipherData());
+                            if(structData == null){
+                                ToastEUtil.makeText(mView.getActivity(),R.string.Network_equest_failed_please_try_again_later,ToastEUtil.TOAST_STATUS_FAILE).show();
+                                return;
+                            }
                             Connect.UserExistedToken existedToken = Connect.UserExistedToken.parseFrom(structData.getPlainData());
-                            Connect.UserInfo userInfo = existedToken.getUserInfo();
-                            UserBean userBean = new UserBean();
-                            userBean.setAddress(userInfo.getAddress());
-                            userBean.setName(userInfo.getUsername());
-                            userBean.setAvatar(userInfo.getAvatar());
-                            userBean.setPriKey(priKey);
-                            userBean.setPubKey(userInfo.getPubKey());
-                            userBean.setConnectId(userInfo.getConnectId());
-                            mView.goinCodeLogin(userBean,existedToken.getToken());
+                            if(ProtoBufUtil.getInstance().checkProtoBuf(existedToken)){
+                                Connect.UserInfo userInfo = existedToken.getUserInfo();
+                                if(ProtoBufUtil.getInstance().checkProtoBuf(userInfo)){
+                                    UserBean userBean = new UserBean();
+                                    userBean.setAddress(userInfo.getAddress());
+                                    userBean.setName(userInfo.getUsername());
+                                    userBean.setAvatar(userInfo.getAvatar());
+                                    userBean.setPriKey(priKey);
+                                    userBean.setPubKey(userInfo.getPubKey());
+                                    userBean.setConnectId(userInfo.getConnectId());
+                                    mView.goinCodeLogin(userBean,existedToken.getToken());
+                                }
+                            }
                         } catch (InvalidProtocolBufferException e) {
                             e.printStackTrace();
                         }
@@ -132,14 +140,6 @@ public class ScanLoginPresenter implements ScanLoginContract.Presenter{
                         }
                     }
                 });
-    }
-
-    public interface OnScanLoginListence{
-        Activity getActivity();
-
-        void goinCodeLogin(UserBean userBean,String token);
-
-        void goinRegister(String priKey);
     }
 
 }

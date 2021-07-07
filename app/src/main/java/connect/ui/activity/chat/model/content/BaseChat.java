@@ -14,7 +14,6 @@ import connect.db.green.bean.ContactEntity;
 import connect.db.green.bean.ConversionEntity;
 import connect.db.green.bean.MessageEntity;
 import connect.im.bean.MsgType;
-import connect.ui.activity.chat.bean.BaseEntity;
 import connect.ui.activity.chat.bean.GatherBean;
 import connect.ui.activity.chat.bean.MessageExtEntity;
 import connect.ui.activity.chat.bean.MsgDefinBean;
@@ -76,11 +75,19 @@ public abstract class BaseChat<T> implements Serializable {
 
     public abstract T createBaseChat(MsgType type);
 
-    public synchronized void updateRoomMsg(String draft, String showText, long msgtime) {
+    public void updateRoomMsg(String draft, String showText, long msgtime) {
         updateRoomMsg(draft, showText, msgtime, -1);
     }
 
     public void updateRoomMsg(String draft, String showText, long msgtime, int at) {
+        updateRoomMsg(draft, showText, msgtime, at, false);
+    }
+
+    public void updateRoomMsg(String draft, String showText, long msgtime, int at, boolean newmsg) {
+        updateRoomMsg(draft,showText,msgtime,at,newmsg,true);
+    }
+
+    public void updateRoomMsg(String draft, String showText, long msgtime, int at, boolean newmsg,boolean broad) {
         if (TextUtils.isEmpty(roomKey())) {
             return;
         }
@@ -93,18 +100,28 @@ public abstract class BaseChat<T> implements Serializable {
 
         roomEntity.setName(nickName());
         roomEntity.setAvatar(headImg());
-        roomEntity.setDraft(draft);
         roomEntity.setType(roomType());
-        roomEntity.setContent(showText);
-        roomEntity.setLast_time(msgtime);
+        if (!TextUtils.isEmpty(showText)) {
+            roomEntity.setContent(showText);
+        }
+        if (msgtime != 0) {
+            roomEntity.setLast_time(msgtime);
+        }
         roomEntity.setStranger(isStranger ? 1 : 0);
-        roomEntity.setUnread_count(0);
+
+        int unread = (null == roomEntity.getUnread_count()) ? 0 : roomEntity.getUnread_count();
+        roomEntity.setUnread_count(newmsg ? ++unread : 0);
+        if (draft != null) {
+            roomEntity.setDraft(draft);
+        }
         if (at == 0 || at == 1) {
             roomEntity.setNotice(at);
         }
 
         ConversionHelper.getInstance().insertRoomEntity(roomEntity);
-        MsgFragmReceiver.refreshRoom(MsgFragmReceiver.FragRecType.ALL);
+        if (broad) {
+            MsgFragmReceiver.refreshRoom();
+        }
     }
 
     public abstract void sendPushMsg(T bean);
@@ -123,69 +140,30 @@ public abstract class BaseChat<T> implements Serializable {
         isStranger = stranger;
     }
 
-    public List<BaseEntity> loadChatEntities() {
-        MsgDefinBean definBean = null;
-        MsgEntity chatBean = null;
-        List<BaseEntity> localBeans = new ArrayList();
-        List<MessageExtEntity> detailEntities = MessageHelper.getInstance().loadFirstMsgEntities(roomKey());
-        byte[] localHashKeys = SupportKeyUril.localHashKey().getBytes();
-        for (MessageExtEntity detailEntity : detailEntities) {
-            try {
-                Connect.GcmData gcmData = null;
-                gcmData = Connect.GcmData.parseFrom(StringUtil.hexStringToBytes(detailEntity.getContent()));
-                byte[] contents = DecryptionUtil.decodeAESGCM(SupportKeyUril.EcdhExts.NONE, localHashKeys, gcmData);
-                definBean = new Gson().fromJson(new String(contents), MsgDefinBean.class);
-
-                chatBean = new MsgEntity();
-                chatBean.setPubkey(roomKey());
-                chatBean.setMsgDefinBean(definBean);
-                chatBean.setMsgid(definBean.getMessage_id());
-                chatBean.setSendstate(detailEntity.getSend_status());
-                chatBean.setRecAddress(address());
-                chatBean.setHashid(detailEntity.getHashid());
-                chatBean.setTransStatus(detailEntity.getTransStatus());
-                chatBean.setPayCount(detailEntity.getPayCount());
-                chatBean.setCrowdCount(detailEntity.getCrowdCount());
-                chatBean.setReadstate(detailEntity.getState());
-
-                long burnstart = (null == detailEntity.getSnap_time()) ? 0 : detailEntity.getSnap_time();
-                chatBean.setBurnstarttime(burnstart);
-
-                localBeans.add(chatBean);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        return localBeans;
-    }
-
-    public List<BaseEntity> loadMoreEntities(long firstmsgtime) {
-        MsgDefinBean definBean = null;
-        MsgEntity chatBean = null;
-        List<BaseEntity> localBeans = new ArrayList();
+    public List<MsgEntity> loadMoreEntities(long firstmsgtime) {
+        List<MsgEntity> localBeans = new ArrayList();
         List<MessageExtEntity> detailEntities = MessageHelper.getInstance().loadMoreMsgEntities(roomKey(), firstmsgtime);
         byte[] localHashKeys = SupportKeyUril.localHashKey().getBytes();
         for (MessageExtEntity detailEntity : detailEntities) {
             try {
-                Connect.GcmData gcmData = null;
-                gcmData = Connect.GcmData.parseFrom(StringUtil.hexStringToBytes(detailEntity.getContent()));
+                Connect.GcmData gcmData = Connect.GcmData.parseFrom(StringUtil.hexStringToBytes(detailEntity.getContent()));
                 byte[] contents = DecryptionUtil.decodeAESGCM(SupportKeyUril.EcdhExts.NONE, localHashKeys, gcmData);
-                definBean = new Gson().fromJson(new String(contents), MsgDefinBean.class);
+                MsgDefinBean definBean = new Gson().fromJson(new String(contents), MsgDefinBean.class);
 
-                chatBean = new MsgEntity();
-                chatBean.setPubkey(roomKey());
-                chatBean.setMsgDefinBean(definBean);
-                chatBean.setSendstate(detailEntity.getSend_status());
-                chatBean.setRecAddress(address());
-
+                MsgEntity msgEntity = new MsgEntity();
+                msgEntity.setPubkey(roomKey());
+                msgEntity.setMsgDefinBean(definBean);
+                msgEntity.setReadstate(detailEntity.getState());
+                msgEntity.setSendstate(detailEntity.getSend_status());
+                msgEntity.setRecAddress(address());
+                msgEntity.setHashid(detailEntity.getHashid());
+                msgEntity.setTransStatus(detailEntity.getTransStatus());
+                msgEntity.setPayCount(detailEntity.getPayCount());
+                msgEntity.setCrowdCount(detailEntity.getCrowdCount());
                 long burnstart = (null == detailEntity.getSnap_time()) ? 0 : detailEntity.getSnap_time();
-                chatBean.setBurnstarttime(burnstart);
-                chatBean.setHashid(detailEntity.getHashid());
-                chatBean.setTransStatus(detailEntity.getTransStatus());
-                chatBean.setPayCount(detailEntity.getPayCount());
-                chatBean.setCrowdCount(detailEntity.getCrowdCount());
+                msgEntity.setBurnstarttime(burnstart);
 
-                localBeans.add(chatBean);
+                localBeans.add(msgEntity);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -199,7 +177,7 @@ public abstract class BaseChat<T> implements Serializable {
      * @param msgid
      * @return
      */
-    public BaseEntity loadEntityByMsgid(String msgid) throws Exception {
+    public MsgEntity loadEntityByMsgid(String msgid) throws Exception {
         MessageEntity messageEntity = MessageHelper.getInstance().loadMsgByMsgid(msgid);
         if (messageEntity == null) {
             return null;

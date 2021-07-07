@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import connect.db.SharedPreferenceUtil;
+import connect.db.MemoryDataManager;
 import connect.db.green.DaoHelper.ContactHelper;
 import connect.db.green.bean.GroupEntity;
 import connect.db.green.bean.GroupMemberEntity;
@@ -24,7 +24,6 @@ import connect.utils.StringUtil;
 import connect.utils.TimeUtil;
 import connect.utils.cryption.EncryptionUtil;
 import connect.utils.cryption.SupportKeyUril;
-import connect.utils.log.LogManager;
 import protos.Connect;
 
 /**
@@ -46,11 +45,11 @@ public class GroupChat extends NormalChat {
             RoomSession.getInstance().setGroupEcdh(groupEntity.getEcdh_key());
         }
 
-        myGroupMember = ContactHelper.getInstance().loadGroupMemByAds(groupEntity.getIdentifier(), SharedPreferenceUtil.getInstance().getAddress());
+        myGroupMember = ContactHelper.getInstance().loadGroupMemByAds(groupEntity.getIdentifier(), MemoryDataManager.getInstance().getAddress());
         if (myGroupMember == null) {
             myGroupMember = new GroupMemberEntity();
-            myGroupMember.setPub_key(SharedPreferenceUtil.getInstance().getPubKey());
-            myGroupMember.setUsername(SharedPreferenceUtil.getInstance().getUser().getName());
+            myGroupMember.setPub_key(MemoryDataManager.getInstance().getPubKey());
+            myGroupMember.setUsername(MemoryDataManager.getInstance().getName());
         }
     }
 
@@ -77,7 +76,7 @@ public class GroupChat extends NormalChat {
         msgDefinBean.setUser_id(groupEntity.getEcdh_key());
         msgDefinBean.setSenderInfoExt(new MsgSender(myGroupMember.getPub_key(),
                 TextUtils.isEmpty(myGroupMember.getNick()) ? myGroupMember.getUsername() : myGroupMember.getNick(),
-                myGroupMember.getAddress(), SharedPreferenceUtil.getInstance().getAvatar()));
+                myGroupMember.getAddress(), MemoryDataManager.getInstance().getAvatar()));
 
         long burntime = RoomSession.getInstance().getBurntime();
         if (burntime > 0) {
@@ -88,7 +87,6 @@ public class GroupChat extends NormalChat {
 
         MsgEntity chatBean = new MsgEntity();
         chatBean.setMsgDefinBean(msgDefinBean);
-        chatBean.setMsgid(msgDefinBean.getMessage_id());
         chatBean.setPubkey(groupEntity.getIdentifier());
         chatBean.setRecAddress(groupEntity.getIdentifier());
         chatBean.setSendstate(0);
@@ -114,7 +112,6 @@ public class GroupChat extends NormalChat {
     @Override
     public String headImg() {
         if (groupEntity == null) return "";
-        LogManager.getLogger().d(Tag, "headImg() :" + groupEntity.getAvatar());
         return groupEntity.getAvatar();
     }
 
@@ -143,7 +140,7 @@ public class GroupChat extends NormalChat {
 
     public String groupEcdh() {
         if (groupEntity == null) return "";
-        return groupEntity.getIdentifier();
+        return groupEntity.getEcdh_key();
     }
 
     public void setGroupEntity(GroupEntity groupEntity) {
@@ -151,7 +148,7 @@ public class GroupChat extends NormalChat {
     }
 
     public void updateMyNickName(){
-        myGroupMember = ContactHelper.getInstance().loadGroupMemByAds(groupEntity.getIdentifier(), SharedPreferenceUtil.getInstance().getAddress());
+        myGroupMember = ContactHelper.getInstance().loadGroupMemByAds(groupEntity.getIdentifier(), MemoryDataManager.getInstance().getAddress());
     }
 
     private Map<String, GroupMemberEntity> memEntityMap = null;
@@ -167,7 +164,6 @@ public class GroupChat extends NormalChat {
         return memEntityMap.get(memberkey);
     }
 
-    @Override
     public String nickName(String pubkey) {
         String memberName = "";
         GroupMemberEntity groupMemEntity = loadGroupMember(pubkey);
@@ -184,7 +180,6 @@ public class GroupChat extends NormalChat {
     }
 
     public void setHeadimg(String path) {
-        LogManager.getLogger().d(Tag, "setHeadimg() :" + headImg());
         groupEntity.setAvatar(path);
     }
 }

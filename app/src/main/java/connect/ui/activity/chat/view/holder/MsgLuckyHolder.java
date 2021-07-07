@@ -1,21 +1,21 @@
 package connect.ui.activity.chat.view.holder;
 
 import android.app.Activity;
-import android.text.TextUtils;
 import android.view.View;
 
 import com.google.gson.Gson;
 
+import connect.db.MemoryDataManager;
 import connect.db.SharedPreferenceUtil;
 import connect.db.green.DaoHelper.MessageHelper;
 import connect.db.green.bean.MessageEntity;
 import connect.ui.activity.R;
-import connect.ui.activity.chat.bean.BaseEntity;
 import connect.ui.activity.chat.bean.MsgDefinBean;
-import connect.ui.activity.chat.bean.RecExtBean;
+import connect.ui.activity.chat.bean.MsgEntity;
 import connect.ui.activity.chat.bean.TransferExt;
 import connect.ui.activity.wallet.PacketDetailActivity;
 import connect.utils.DialogUtil;
+import connect.utils.ProtoBufUtil;
 import connect.utils.ToastEUtil;
 import connect.utils.UriUtil;
 import connect.utils.cryption.DecryptionUtil;
@@ -37,7 +37,7 @@ public class MsgLuckyHolder extends MsgChatHolder {
     }
 
     @Override
-    public void buildRowData(MsgBaseHolder msgBaseHolder, final BaseEntity entity) {
+    public void buildRowData(MsgBaseHolder msgBaseHolder, final MsgEntity entity) {
         super.buildRowData(msgBaseHolder, entity);
         contentLayout.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -80,7 +80,6 @@ public class MsgLuckyHolder extends MsgChatHolder {
         OkHttpUtil.getInstance().postEncrySelf(uri, packageHash, new ResultCall<Connect.HttpResponse>() {
             @Override
             public void onResponse(Connect.HttpResponse response) {
-                String prikey = SharedPreferenceUtil.getInstance().getPriKey();
                 try {
                     Connect.IMResponse imResponse = Connect.IMResponse.parseFrom(response.getBody().toByteArray());
                     if (!SupportKeyUril.verifySign(imResponse.getSign(), imResponse.getCipherData().toByteArray())) {
@@ -91,8 +90,11 @@ public class MsgLuckyHolder extends MsgChatHolder {
                         return;
                     }
 
-                    Connect.StructData structData = DecryptionUtil.decodeAESGCMStructData(prikey, imResponse.getCipherData());
+                    Connect.StructData structData = DecryptionUtil.decodeAESGCMStructData(imResponse.getCipherData());
                     Connect.GrabRedPackageResp packageResp = Connect.GrabRedPackageResp.parseFrom(structData.getPlainData());
+                    if(!ProtoBufUtil.getInstance().checkProtoBuf(packageResp)){
+                        return;
+                    }
                     switch (packageResp.getStatus()) {
                         case 0://fail
                             playAnim=true;
@@ -129,6 +131,12 @@ public class MsgLuckyHolder extends MsgChatHolder {
                             break;
                         case 6://A phone number can only get once
                             ToastEUtil.makeText(context,R.string.Set_A_phone_number_can_only_grab_once,2).show();
+                            break;
+                        case 7://PAUSE
+                            ToastEUtil.makeText(context,R.string.Chat_system_luckypackage_have_been_frozen,2).show();
+                            break;
+                        case 8://DEVICELIMIT
+                            ToastEUtil.makeText(context,R.string.Chat_one_device_can_only_grab_a_luckypackage,2).show();
                             break;
                     }
                 } catch (Exception e) {

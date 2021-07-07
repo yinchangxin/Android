@@ -51,10 +51,6 @@ public class MessageHelper extends BaseDao {
     }
 
     /********************************* select ***********************************/
-    public List<MessageExtEntity> loadFirstMsgEntities(String pubkey) {
-        return loadMoreMsgEntities(pubkey, 0);
-    }
-
     public List<MessageExtEntity> loadMoreMsgEntities(String pubkey, long firsttime) {
         String sql = "SELECT * FROM (SELECT C.* ,S.STATUS AS TRANS_STATUS,HASHID,PAY_COUNT,CROWD_COUNT FROM MESSAGE_ENTITY C LEFT OUTER JOIN TRANSACTION_ENTITY S ON C.MESSAGE_ID = S.MESSAGE_ID WHERE C.MESSAGE_OWER = ? " +
                 ((firsttime == 0) ? "" : " AND C.CREATETIME < " + firsttime) +//load more message
@@ -100,10 +96,6 @@ public class MessageHelper extends BaseDao {
         messageEntityDao.insertOrReplace(msgEntity);
     }
 
-    public void insertMsg(List<MessageEntity> msgEntities) {
-        messageEntityDao.insertOrReplaceInTx(msgEntities);
-    }
-
     public void insertFromMsg(String roomid, MsgDefinBean bean) {
         insertMsg(roomid, bean, 1);
     }
@@ -111,7 +103,6 @@ public class MessageHelper extends BaseDao {
     public void insertToMsg(MsgDefinBean bean) {
         insertMsg(bean.getPublicKey(), bean, 1);
     }
-
 
     public void insertMsg(String roomid, MsgDefinBean bean, int sendstate) {
         String content = new Gson().toJson(bean);

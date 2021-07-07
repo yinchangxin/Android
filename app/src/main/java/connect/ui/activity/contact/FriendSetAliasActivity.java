@@ -15,7 +15,7 @@ import butterknife.ButterKnife;
 import butterknife.OnClick;
 import connect.db.green.DaoHelper.ContactHelper;
 import connect.db.green.bean.ContactEntity;
-import connect.im.msgdeal.SendMsgUtil;
+import connect.im.bean.UserOrderBean;
 import connect.ui.activity.R;
 import connect.ui.activity.contact.bean.ContactNotice;
 import connect.ui.activity.contact.bean.MsgSendBean;
@@ -41,9 +41,9 @@ public class FriendSetAliasActivity extends BaseActivity {
     private FriendSetAliasActivity mActivity;
     private ContactEntity friendEntity;
 
-    public static void startActivity(Activity activity, ContactEntity friendEntity) {
+    public static void startActivity(Activity activity, String pubKey) {
         Bundle bundle = new Bundle();
-        bundle.putSerializable("bean", friendEntity);
+        bundle.putSerializable("pubKey", pubKey);
         ActivityUtil.next(activity, FriendSetAliasActivity.class, bundle);
     }
 
@@ -63,8 +63,7 @@ public class FriendSetAliasActivity extends BaseActivity {
         toolbar.setLeftImg(R.mipmap.back_white);
         toolbar.setTitle(null, R.string.Link_Set_Remark_and_Tag);
 
-        Bundle bundle = getIntent().getExtras();
-        friendEntity = (ContactEntity) bundle.getSerializable("bean");
+        friendEntity = ContactHelper.getInstance().loadFriendEntity(getIntent().getExtras().getString("pubKey"));
         nicknameEt.setText(friendEntity.getRemark());
         saveTv.setEnabled(true);
     }
@@ -86,7 +85,7 @@ public class FriendSetAliasActivity extends BaseActivity {
                 if(sendBean.getType() == MsgSendBean.SendType.TypeFriendRemark){
                     ContactHelper.getInstance().updataFriendSetEntity(friendEntity);
                     ContactNotice.receiverFriend();
-                    MsgFragmReceiver.refreshRoom(MsgFragmReceiver.FragRecType.ALL);
+                    MsgFragmReceiver.refreshRoom();
                     ActivityUtil.goBack(mActivity);
                 }
                 break;
@@ -103,7 +102,9 @@ public class FriendSetAliasActivity extends BaseActivity {
         MsgSendBean msgSendBean = new MsgSendBean();
         msgSendBean.setType(MsgSendBean.SendType.TypeFriendRemark);
         boolean common = friendEntity.getCommon() != null && friendEntity.getCommon() == 1;
-        SendMsgUtil.setFriend(friendEntity.getAddress(), friendEntity.getRemark(), common, msgSendBean);
+
+        UserOrderBean userOrderBean = new UserOrderBean();
+        userOrderBean.setFriend(friendEntity.getAddress(), friendEntity.getRemark(), common, msgSendBean);
     }
 
     @Override

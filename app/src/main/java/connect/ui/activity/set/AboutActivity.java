@@ -19,6 +19,7 @@ import connect.ui.base.BaseActivity;
 import connect.ui.service.UpdataService;
 import connect.utils.ActivityUtil;
 import connect.utils.DialogUtil;
+import connect.utils.ProtoBufUtil;
 import connect.utils.StringUtil;
 import connect.utils.permission.PermissiomUtilNew;
 import connect.utils.system.SystemDataUtil;
@@ -142,13 +143,14 @@ public class AboutActivity extends BaseActivity {
                 try {
                     Connect.StructData structData = Connect.StructData.parseFrom(response.getBody().toByteArray());
                     versionResponse = Connect.VersionResponse.parseFrom(structData.getPlainData());
-                    if(!TextUtils.isEmpty(versionResponse.getVersion())){
+                    if(ProtoBufUtil.getInstance().checkProtoBuf(versionResponse)){
                         comparInt = StringUtil.VersionComparison(versionResponse.getVersion(),SystemDataUtil.getVersionName(mActivity));
                         switch (comparInt){
                             case 1:
                                 tvNewVersion.setText(mActivity.getString(R.string.Set_new_version,versionResponse.getVersion()));
                                 break;
                             case 0:
+                                tvNewVersion.setText(R.string.Set_This_is_the_newest_version);
                             case -1:
                                 tvNewVersion.setText(R.string.Set_This_is_the_newest_version);
                                 break;

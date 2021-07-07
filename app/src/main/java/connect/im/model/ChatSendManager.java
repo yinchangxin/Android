@@ -1,22 +1,26 @@
 package connect.im.model;
 
-import android.os.Handler;
-import android.os.Message;
 import android.text.TextUtils;
 
 import com.google.protobuf.ByteString;
 
-import java.util.Map;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import connect.db.MemoryDataManager;
 import connect.db.SharedPreferenceUtil;
 import connect.im.bean.Session;
 import connect.im.bean.SocketACK;
-import connect.ui.activity.chat.model.ChatMsgUtil;
-import connect.ui.base.BaseApplication;
+import connect.ui.service.bean.PushMessage;
+import connect.ui.service.bean.ServiceAck;
+import connect.utils.StringUtil;
 import connect.utils.cryption.EncryptionUtil;
 import connect.utils.cryption.SupportKeyUril;
 import connect.utils.log.LogManager;
@@ -70,7 +74,7 @@ public class ChatSendManager {
      * @param data
      */
     public void sendChatAckMsg(SocketACK order, String roomkey, Connect.MessageData data) {
-        String priKey = SharedPreferenceUtil.getInstance().getPriKey();
+        String priKey = MemoryDataManager.getInstance().getPriKey();
 
         //messagePost
         String postsign = SupportKeyUril.signHash(priKey, data.toByteArray());
@@ -98,93 +102,58 @@ public class ChatSendManager {
                 break;
         }
         if (canFailReSend) {
-            sendDelayFailMsg(roomkey, msgid, order, bytes);
+            FailMsgsManager.getInstance().sendDelayFailMsg(roomkey, msgid, order, bytes);
         }
     }
 
-    private class SendChatRun implements Runnable {
-        private SocketACK order;
+    public void sendToMsg(SocketACK ack, ByteString byteString) {
+        SendChatRun sendChatRun = new SendChatRun(false, ack, byteString);
+        threadPoolExecutor.execute(sendChatRun);
+    }
+
+    protected class SendChatRun implements Runnable {
+        private boolean transfer;
+        private SocketACK ack;
         private ByteString bytes;
 
-        SendChatRun(SocketACK order, ByteString bytes) {
-            this.order = order;
+        SendChatRun(SocketACK ack, ByteString bytes) {
+            this.transfer = true;
+            this.ack = ack;
+            this.bytes = bytes;
+        }
+
+        SendChatRun(boolean transfer, SocketACK ack, ByteString bytes) {
+            this.transfer = transfer;
+            this.ack = ack;
             this.bytes = bytes;
         }
 
         @Override
         public synchronized void run() {
             try {
-                String priKey = SharedPreferenceUtil.getInstance().getPriKey();
+                ByteBuffer byteBuffer = null;
+                if (transfer) { // transferData,Encapsulating server checksum data
+                    String priKey = MemoryDataManager.getInstance().getPriKey();
+                    Connect.GcmData gcmData = EncryptionUtil.encodeAESGCMStructData(SupportKeyUril.EcdhExts.NONE,
+                            Session.getInstance().getUserCookie("TEMPCOOKIE").getSalt(), bytes);
+                    String signHash = SupportKeyUril.signHash(priKey, gcmData.toByteArray());
+                    Connect.IMTransferData transferData = Connect.IMTransferData.newBuilder().
+                            setSign(signHash).setCipherData(gcmData).build();
 
-                //transferData
-                Connect.GcmData gcmData = EncryptionUtil.encodeAESGCMStructData(SupportKeyUril.EcdhExts.NONE,
-                        Session.getInstance().getUserCookie("TEMPCOOKIE").getSalt(), bytes);
-                String signHash = SupportKeyUril.signHash(priKey, gcmData.toByteArray());
-                Connect.IMTransferData transferData = Connect.IMTransferData.newBuilder().
-                        setSign(signHash).setCipherData(gcmData).build();
-
-                MsgSendManager.getInstance().sendMessage(order.getOrder(), transferData.toByteArray());
+                    byteBuffer = ByteBuffer.wrap(transferData.toByteArray());
+                    PushMessage.pushMessage(ServiceAck.MESSAGE, ack.getOrder(), byteBuffer);
+                } else {
+                    byteBuffer = ByteBuffer.wrap(bytes.toByteArray());
+                    PushMessage.pushMessage(ServiceAck.MESSAGE, ack.getOrder(), byteBuffer);
+                }
             } catch (Exception e) {
                 e.printStackTrace();
                 String errInfo = e.getMessage();
                 if (TextUtils.isEmpty(errInfo)) {
                     errInfo = "";
                 }
-                LogManager.getLogger().d(Tag, "exception order: [" + order.getOrder()[0] + "][" + order.getOrder()[1] + "]" + e.getMessage());
+                LogManager.getLogger().d(Tag, "exception order: [" + ack.getOrder()[0] + "][" + ack.getOrder()[1] + "]" + errInfo);
             }
         }
     }
-
-    public void sendDelayFailMsg(String roomkey, String msgid) {
-        sendDelayFailMsg(roomkey, msgid, null, null);
-    }
-
-    /**
-     * Delay message sent failure
-     *
-     * @param msgid
-     * @param roomkey
-     */
-    public void sendDelayFailMsg(String roomkey, String msgid, SocketACK order, ByteString msgbyte) {
-        long delaytime = 0;
-        if (TextUtils.isEmpty(roomkey)) {
-            delaytime = MSGTIME_OTHER;
-        } else {
-            delaytime = MSGTIME_CHAT;
-        }
-        FailMsgsManager.getInstance().insertFailMsg(roomkey, msgid, order, msgbyte, null);
-
-        if (!TextUtils.isEmpty(msgid)) {
-            android.os.Message msg = new Message();
-            msg.what = MSG_FAIL;
-            msg.obj = msgid;
-            delayFailHandler.sendMessageDelayed(msg, delaytime);
-        }
-    }
-
-    /** Chat messages failure time */
-    private final long MSGTIME_CHAT = 10 * 1000;
-    /** Other messages sent failure time */
-    private final long MSGTIME_OTHER = 1000;
-    /** Failure message */
-    private final int MSG_FAIL = 100;
-
-    /**
-     * Delay message sent failure
-     */
-    private Handler delayFailHandler = new Handler(BaseApplication.getInstance().getBaseContext().getMainLooper()) {
-        @Override
-        public void handleMessage(android.os.Message msg) {
-            super.handleMessage(msg);
-            switch (msg.what) {
-                case MSG_FAIL:
-                    String msgid = (String) msg.obj;
-                    Map failMap = FailMsgsManager.getInstance().getFailMap(msgid);
-                    if (failMap != null) {
-                        ChatMsgUtil.updateMsgSendState("", msgid, 2);
-                    }
-                    break;
-            }
-        }
-    };
 }

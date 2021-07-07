@@ -9,7 +9,7 @@ import android.widget.TextView;
 import java.util.Locale;
 
 import connect.ui.activity.R;
-import connect.ui.activity.chat.bean.BaseEntity;
+import connect.ui.activity.chat.bean.MsgEntity;
 import connect.ui.activity.chat.bean.MsgDefinBean;
 import connect.ui.activity.chat.bean.MsgDirect;
 import connect.ui.activity.chat.bean.MsgEntity;
@@ -41,7 +41,7 @@ public class MsgVideoHolder extends MsgChatHolder {
     }
 
     @Override
-    public void buildRowData(final MsgBaseHolder msgBaseHolder, final BaseEntity entity) {
+    public void buildRowData(final MsgBaseHolder msgBaseHolder, final MsgEntity entity) {
         super.buildRowData(msgBaseHolder, entity);
         final MsgDefinBean bean = entity.getMsgDefinBean();
         String url = bean.getContent();
@@ -58,9 +58,7 @@ public class MsgVideoHolder extends MsgChatHolder {
             videomsg.setOpenBurn(false);
         }
 
-        videomsg.loadUri(direct, entity.getPubkey(), bean.getMessage_id(), url);
-        videomsg.setLayoutParams(calculateSize((RelativeLayout.LayoutParams) videomsg.getLayoutParams(), bean.getImageOriginWidth(), bean.getImageOriginHeight()));
-
+        videomsg.loadUri(direct, entity.getPubkey(), bean.getMessage_id(), url,definBean.getImageOriginWidth(),definBean.getImageOriginHeight());
         contentLayout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -90,7 +88,7 @@ public class MsgVideoHolder extends MsgChatHolder {
                         public void successDown(byte[] bytes) {
                             videoProView.loadState(true, 0);
                             videomsg.setOpenBurn(false);
-                            videomsg.loadUri(direct, entity.getPubkey(), bean.getMessage_id(), definBean.getUrl());
+                            videomsg.loadUri(direct, entity.getPubkey(), bean.getMessage_id(), definBean.getUrl(),definBean.getImageOriginWidth(),definBean.getImageOriginHeight());
 
                             FileUtil.byteArrToFilePath(bytes, localPath);
 
@@ -149,26 +147,6 @@ public class MsgVideoHolder extends MsgChatHolder {
         return isDown;
     }
 
-    private RelativeLayout.LayoutParams calculateSize(RelativeLayout.LayoutParams params, float width, float height) {
-        int maxDp = SystemUtil.dipToPx(160);
-        if (height != 0 && width != 0) {
-            double scale = (width * 1.00) / height;
-            if (width >= height) {
-                width = maxDp;
-                height = (int) (width / scale);
-            } else {
-                height = maxDp;
-                width = (int) (height * scale);
-            }
-        } else {
-            width = maxDp;
-            height = maxDp;
-        }
-        params.width = (int) width;
-        params.height = (int) height;
-        return params;
-    }
-
     @Override
     public String[] longPressPrompt() {
         return context.getResources().getStringArray(R.array.prompt_video);
@@ -182,16 +160,16 @@ public class MsgVideoHolder extends MsgChatHolder {
         final String localPath = FileUtil.newContactFileName(baseEntity.getPubkey(), bean.getMessage_id(), FileUtil.FileType.VIDEO);
 
         if (FileUtil.islocalFile(url)) {
-            ConversationActivity.startActivity((Activity) context, ConverType.TRANSPOND,String.valueOf(bean.getType()), url);
+            ConversationActivity.startActivity((Activity) context, ConverType.TRANSPOND,String.valueOf(bean.getType()), url,bean.getSize());
         } else if (FileUtil.isExistFilePath(localPath)) {
-            ConversationActivity.startActivity((Activity) context, ConverType.TRANSPOND,String.valueOf(bean.getType()), localPath);
+            ConversationActivity.startActivity((Activity) context, ConverType.TRANSPOND,String.valueOf(bean.getType()), localPath,bean.getSize());
         } else {
             FileDownLoad.getInstance().downChatFile(url, baseEntity.getPubkey(), new FileDownLoad.IFileDownLoad() {
                 @Override
                 public void successDown(byte[] bytes) {
                     videoProView.loadState(true, 0);
                     FileUtil.byteArrToFilePath(bytes, localPath);
-                    ConversationActivity.startActivity((Activity) context, ConverType.TRANSPOND, String.valueOf(bean.getType()), localPath);
+                    ConversationActivity.startActivity((Activity) context, ConverType.TRANSPOND, String.valueOf(bean.getType()), localPath,bean.getSize());
                 }
 
                 @Override

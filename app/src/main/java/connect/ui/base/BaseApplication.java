@@ -9,6 +9,7 @@ import com.tencent.bugly.crashreport.CrashReport;
 import java.util.ArrayList;
 import java.util.List;
 
+import connect.ui.activity.chat.model.EmoManager;
 import connect.ui.service.HttpsService;
 import connect.ui.service.SocketService;
 import connect.utils.ConfigUtil;
@@ -27,17 +28,10 @@ public class BaseApplication extends Application{
         super.onCreate();
         mApplication = this;
 
-        //设置该CrashHandler为程序的默认处理器
+        EmoManager.getInstance();
         UnCeHandler catchExcep = new UnCeHandler(this);
         Thread.setDefaultUncaughtExceptionHandler(catchExcep);
-
-        //建议在测试阶段建议设置成true，发布时设置为false。
-        //区分开 测试bug跟正式bug
-        CrashReport.initCrashReport(getApplicationContext(),
-                true ? "9b63c64ee1" : "cf78e82d4f",
-                true);
-        //google Fcm推送
-        //FcmPush.init(this);
+        CrashReport.initCrashReport(this, ConfigUtil.getInstance().getCrashAPPID(), true);
     }
 
     @Override

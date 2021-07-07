@@ -8,6 +8,7 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.ContactsContract;
 import android.provider.Settings;
 import android.text.TextUtils;
@@ -32,6 +33,8 @@ import connect.wallet.jni.AllNativeMethod;
  */
 
 public class SystemDataUtil {
+
+    private static String Tag = "SystemDataUtil";
 
     /**
      * Get the APP version Name
@@ -74,23 +77,43 @@ public class SystemDataUtil {
      * @return
      */
     public static String getDeviceId() {
-        String deviceId = "";
+        String deviceId = null;
         Context context = BaseApplication.getInstance().getBaseContext();
         try {
             deviceId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
         } catch (Exception e) {
             e.printStackTrace();
-        }
-
-        if (deviceId == null || "".equals(deviceId)) {
-            UUID uuid = UUID.randomUUID();
-            deviceId = uuid.toString().replace("-", "");
+            deviceId = "";
         }
         return AllNativeMethod.cdGetHash256(deviceId);
     }
 
     /**
-     * Gets the current state
+     * Pseudo-Unique ID
+     * @return
+     */
+    public static String getLocalUid() {
+        String serial = null;
+        String deviceID = "35" +
+                Build.BOARD.length() % 10 + Build.BRAND.length() % 10 +
+                Build.CPU_ABI.length() % 10 + Build.DEVICE.length() % 10 +
+                Build.DISPLAY.length() % 10 + Build.HOST.length() % 10 +
+                Build.ID.length() % 10 + Build.MANUFACTURER.length() % 10 +
+                Build.MODEL.length() % 10 + Build.PRODUCT.length() % 10 +
+                Build.TAGS.length() % 10 + Build.TYPE.length() % 10 +
+                Build.USER.length() % 10;
+
+        try {
+            serial = android.os.Build.class.getField("SERIAL").get(null).toString();
+        } catch (Exception exception) {
+            serial = "serial";
+        }
+        serial = new UUID(deviceID.hashCode(), serial.hashCode()).toString();
+        return AllNativeMethod.cdGetHash256(serial);
+    }
+
+    /**
+     * Gets the current national code
      */
     public static String getCountry(){
         Locale locale = Locale.getDefault();
@@ -106,11 +129,17 @@ public class SystemDataUtil {
     }
 
     /**
-     * For country code
+     * Gets the current national currency code
      */
     public static String getCountryCode(){
         Locale locale = Locale.getDefault();
-        Currency currency = Currency.getInstance(locale);
+        Currency currency;
+        try {
+            currency = Currency.getInstance(locale);
+        }catch (Exception e){
+            // IllegalArgumentException:Unsupported ISO 3166 country: en
+            return "";
+        }
         return currency.getCurrencyCode();
     }
 
@@ -210,5 +239,4 @@ public class SystemDataUtil {
         }
         return loacList;
     }
-
 }
